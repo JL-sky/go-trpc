@@ -15,3 +15,16 @@ message HelloReply {
   string msg = 1;
 }
 
+
+service Add {
+  rpc Add (AddRequest) returns (AddReply) {}
+}
+
+message AddRequest {
+  int32 a = 1;
+  int32 b = 2;
+}
+message AddReply {
+  int32 sum = 1;
+}
+

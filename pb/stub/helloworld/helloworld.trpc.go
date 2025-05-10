@@ -59,12 +59,60 @@ func RegisterGreeterService(s server.Service, svr GreeterService) {
 	}
 }
 
+// AddService defines service.
+type AddService interface {
+	Add(ctx context.Context, req *AddRequest) (*AddReply, error)
+}
+
+func AddService_Add_Handler(svr interface{}, ctx context.Context, f server.FilterFunc) (interface{}, error) {
+	req := &AddRequest{}
+	filters, err := f(req)
+	if err != nil {
+		return nil, err
+	}
+	handleFunc := func(ctx context.Context, reqbody interface{}) (interface{}, error) {
+		return svr.(AddService).Add(ctx, reqbody.(*AddRequest))
+	}
+
+	var rsp interface{}
+	rsp, err = filters.Filter(ctx, req, handleFunc)
+	if err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// AddServer_ServiceDesc descriptor for server.RegisterService.
+var AddServer_ServiceDesc = server.ServiceDesc{
+	ServiceName: "trpc.helloworld.Add",
+	HandlerType: ((*AddService)(nil)),
+	Methods: []server.Method{
+		{
+			Name: "/trpc.helloworld.Add/Add",
+			Func: AddService_Add_Handler,
+		},
+	},
+}
+
+// RegisterAddService registers service.
+func RegisterAddService(s server.Service, svr AddService) {
+	if err := s.Register(&AddServer_ServiceDesc, svr); err != nil {
+		panic(fmt.Sprintf("Add register error:%v", err))
+	}
+}
+
 // START --------------------------------- Default Unimplemented Server Service --------------------------------- START
 
 type UnimplementedGreeter struct{}
 
 func (s *UnimplementedGreeter) Hello(ctx context.Context, req *HelloRequest) (*HelloReply, error) {
 	return nil, errors.New("rpc Hello of service Greeter is not implemented")
+}
+
+type UnimplementedAdd struct{}
+
+func (s *UnimplementedAdd) Add(ctx context.Context, req *AddRequest) (*AddReply, error) {
+	return nil, errors.New("rpc Add of service Add is not implemented")
 }
 
 // END --------------------------------- Default Unimplemented Server Service --------------------------------- END
@@ -101,6 +149,40 @@ func (c *GreeterClientProxyImpl) Hello(ctx context.Context, req *HelloRequest, o
 	callopts = append(callopts, c.opts...)
 	callopts = append(callopts, opts...)
 	rsp := &HelloReply{}
+	if err := c.client.Invoke(ctx, req, rsp, callopts...); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// AddClientProxy defines service client proxy
+type AddClientProxy interface {
+	Add(ctx context.Context, req *AddRequest, opts ...client.Option) (rsp *AddReply, err error)
+}
+
+type AddClientProxyImpl struct {
+	client client.Client
+	opts   []client.Option
+}
+
+var NewAddClientProxy = func(opts ...client.Option) AddClientProxy {
+	return &AddClientProxyImpl{client: client.DefaultClient, opts: opts}
+}
+
+func (c *AddClientProxyImpl) Add(ctx context.Context, req *AddRequest, opts ...client.Option) (*AddReply, error) {
+	ctx, msg := codec.WithCloneMessage(ctx)
+	defer codec.PutBackMessage(msg)
+	msg.WithClientRPCName("/trpc.helloworld.Add/Add")
+	msg.WithCalleeServiceName(AddServer_ServiceDesc.ServiceName)
+	msg.WithCalleeApp("")
+	msg.WithCalleeServer("")
+	msg.WithCalleeService("Add")
+	msg.WithCalleeMethod("Add")
+	msg.WithSerializationType(codec.SerializationTypePB)
+	callopts := make([]client.Option, 0, len(c.opts)+len(opts))
+	callopts = append(callopts, c.opts...)
+	callopts = append(callopts, opts...)
+	rsp := &AddReply{}
 	if err := c.client.Invoke(ctx, req, rsp, callopts...); err != nil {
 		return nil, err
 	}
